@@ -84,7 +84,7 @@ def draw(event):
             window.blit(tiles[tilemap[y][x]], (x * ts - px + ww / 2, y * ts - py + wh / 2))
 
     sock.sendto(str([player.nick, player.x, player.y, player.angle, player.projectiles]), addr)
-    players = eval(sock.recv(1024))
+    players = eval(sock.recv(2 ** 16))
 
     for p in players:
         if p == player.nick:
