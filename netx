@@ -83,6 +83,26 @@ def draw(event):
 
             window.blit(tiles[tilemap[y][x]], (x * ts - px + ww / 2, y * ts - py + wh / 2))
 
+    sock.sendto(str([player.nick, player.x, player.y, player.angle, player.projectiles]), addr)
+    players = eval(sock.recv(1024))
+
+    for p in players:
+        if p == player.nick:
+            continue
+
+        px, py, pa = players[p]
+
+        frame = pygame.transform.rotate(player.frames[player.frame], pa)
+        turret = pygame.transform.rotate(player.turret, pa)
+
+        window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
+        window.blit(turret, (ww / 2 - turret.get_rect()[2] / 2 + (px - player.x), wh / 2 - turret.get_rect()[3] / 2 + (py - player.y)))
+
+        for pr in p[4]:
+            px, py, pvx, pvy, pgx, pgy, pt = pr
+            frame = pygame.transform.rotate(player.grenade[pt], (360 / (2 * math.pi)) * math.atan2(pvx, pvy) - 90)
+            window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
+
     remove = []
     for i in range(len(player.projectiles)):
         px, py, pvx, pvy, pgx, pgy, pt = player.projectiles[i]
@@ -100,21 +120,6 @@ def draw(event):
 
     for r in remove:
         player.projectiles.remove(r)
-
-    sock.sendto(str([player.nick, player.x, player.y, player.angle]), addr)
-    players = eval(sock.recv(1024))
-
-    for p in players:
-        if p == player.nick:
-            continue
-
-        px, py, pa = players[p]
-
-        frame = pygame.transform.rotate(player.frames[player.frame], pa)
-        turret = pygame.transform.rotate(player.turret, pa)
-
-        window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
-        window.blit(turret, (ww / 2 - turret.get_rect()[2] / 2 + (px - player.x), wh / 2 - turret.get_rect()[3] / 2 + (py - player.y)))
 
     px, py, pa = player.x, player.y, player.angle
 
