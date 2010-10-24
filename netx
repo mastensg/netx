@@ -1,0 +1,192 @@
+#!/usr/bin/env python
+import math
+import sys
+import socket
+
+import pygame
+
+import util
+
+class Editor:
+    current_tile = 0
+    editing = False
+    show_help = False
+
+class Player:
+    vx, vy = 0, 0
+    w, h = 32, 32
+    landspeed = 2
+    waterspeed = .1
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+
+colorkey = (0, 0, 255)
+framerate = 60
+ww, wh = 640, 480
+ts = 32
+
+dialog_margin = 2 * ts
+dialog_padding = ts
+dialog_bg = 31, 31, 127
+dialog_fg = 255, 255, 255
+dialog_fontname = "Sans"
+dialog_fontsize = 12
+dialog_lineheight = 16
+dialog_helptext = """
+Esc:       Save and quit.
+F1:          Help.
+F2:          Toggle editor.
+F11:        Toggle fullscreen.
+WASD:   Move tank.
+
+Left mouse button: Place tile.
+""".split("\n")[1:]
+
+def draw(event):
+    window.fill(colorkey)
+
+    keys = pygame.key.get_pressed()
+
+    x = int(player.x // ts)
+    y = int(player.y // ts)
+
+    if y in range(len(tilemap)) and x in range(len(tilemap[y])) and tilemap[y][x] == 9:
+        player.speed = player.waterspeed
+    else:
+        player.speed = player.landspeed
+
+    player.vx = player.speed * keys[pygame.K_d] - player.speed * keys[pygame.K_a]
+    player.vy = player.speed * keys[pygame.K_s] - player.speed * keys[pygame.K_w]
+
+    if player.vx or player.vy:
+        player.frame = int(player.x / 4) % len(player.frames)
+        player.angle = (360 / (2 * math.pi)) * math.atan2(player.vx, player.vy) - 90
+        player.x += player.vx
+        player.y += player.vy
+
+    py, px = player.y, player.x
+
+    for y in range(int(py - wh / 2) // ts - 1, int(py + wh / 2) // ts + 2):
+        if not 0 < y < len(tilemap):
+            continue
+
+        for x in range(int(px - ww / 2) // ts - 1, int(px + ww / 2) // ts + 2):
+            if not 0 < x < len(tilemap[y]):
+                continue
+
+            window.blit(tiles[tilemap[y][x]], (x * ts - px + ww / 2, y * ts - py + wh / 2))
+
+    sock.sendto(str([player.nick, player.x, player.y, player.angle]), addr)
+    players = eval(sock.recv(1024))
+
+    for p in players:
+        if p == player.nick:
+            continue
+
+        px, py, pa = players[p]
+
+        frame = pygame.transform.rotate(player.frames[player.frame], pa)
+        turret = pygame.transform.rotate(player.turret, pa)
+
+        window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
+        window.blit(turret, (ww / 2 - turret.get_rect()[2] / 2 + (px - player.x), wh / 2 - turret.get_rect()[3] / 2 + (py - player.y)))
+
+    px, py, pa = player.x, player.y, player.angle
+
+    mx, my = pygame.mouse.get_pos()
+
+    dx = mx - ww / 2
+    dy = my - wh / 2
+
+    frame = pygame.transform.rotate(player.frames[player.frame], pa)
+    turret = pygame.transform.rotate(player.turret, (360 / (2 * math.pi)) * math.atan2(dx, dy) - 90)
+
+    window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2, wh / 2 - frame.get_rect()[3] / 2))
+    window.blit(turret, (ww / 2 - turret.get_rect()[2] / 2, wh / 2 - turret.get_rect()[3] / 2))
+
+    if editor.editing:
+        x = (mx + (px + ww / 2) % ts) // ts * ts - (px + ww / 2) % ts
+        y = (my + (py + wh / 2) % ts) // ts * ts - (py + wh / 2) % ts
+        window.blit(tiles[editor.current_tile], (x, y))
+
+        if pygame.mouse.get_pressed()[0]:
+            x = int(mx + player.x - ww / 2) // ts
+            y = int(my + player.y - wh / 2) // ts
+            tilemap[y][x] = editor.current_tile
+
+    if editor.show_help:
+        pygame.draw.rect(window, dialog_bg, (dialog_margin, dialog_margin, ww - 2 * dialog_margin, wh - 2 * dialog_margin))
+        x = y = dialog_margin + dialog_padding
+        for line in dialog_helptext:
+            rendered_line = dialog_font.render(line, True, dialog_fg)
+            window.blit(rendered_line, (x, y))
+            y += dialog_lineheight
+
+    pygame.display.update()
+
+def keypress(event):
+    if event.key == pygame.K_ESCAPE:
+        f = open("maps/lol", "w")
+        f.write(repr(tilemap))
+        f.close()
+
+        sock.close()
+        sys.exit(0)
+    elif event.key == pygame.K_F1:
+        editor.show_help = not editor.show_help
+    elif event.key == pygame.K_F2:
+        editor.editing = not editor.editing
+    elif event.key == pygame.K_F11:
+        pygame.display.toggle_fullscreen()
+
+def mousepress(event):
+    if editor.editing:
+        if event.button == 4:
+            editor.current_tile = (editor.current_tile - 1) % len(tiles)
+        elif event.button == 5:
+            editor.current_tile = (editor.current_tile + 1) % len(tiles)
+
+def main():
+    events = {str(pygame.VIDEOEXPOSE): draw,
+              str(pygame.KEYDOWN): keypress,
+              str(pygame.MOUSEBUTTONDOWN): mousepress}
+
+    pygame.init()
+    pygame.time.set_timer(pygame.VIDEOEXPOSE, 1000 / framerate)
+
+    global window, image, player, tiles, tilemap, editor, dialog_font, fog, addr, sock
+
+    window = pygame.display.set_mode((ww, wh))
+
+    player = Player(16 * ts, 12 * ts)
+    player.frames = util.load_frames("gfx/player.png", 32, 32, colorkey)
+    player.frame = 0
+    player.angle = 0
+    player.nick = sys.argv[3]
+    player.turret = pygame.image.load("gfx/turret.png")
+    player.turret.set_colorkey(colorkey)
+
+    tiles = util.load_frames("gfx/tiles.png", 32, 32)
+
+    tilemap = eval(open("maps/lol", "r").read())
+
+    editor = Editor();
+    editor.editing = False
+
+    dialog_font = pygame.font.SysFont(dialog_fontname, dialog_fontsize)
+
+    fog = pygame.image.load("gfx/fog.png")
+
+    addr = sys.argv[1], int(sys.argv[2])
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    while True:
+        event = pygame.event.wait()
+        eventtype = str(event.type)
+
+        if eventtype in events:
+            events[eventtype](event)
+
+if __name__ == "__main__":
+    main()
