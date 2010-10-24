@@ -90,7 +90,7 @@ def draw(event):
         if p == player.nick:
             continue
 
-        px, py, pa = players[p]
+        px, py, pa, pp = players[p]
 
         frame = pygame.transform.rotate(player.frames[player.frame], pa)
         turret = pygame.transform.rotate(player.turret, pa)
@@ -98,7 +98,7 @@ def draw(event):
         window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
         window.blit(turret, (ww / 2 - turret.get_rect()[2] / 2 + (px - player.x), wh / 2 - turret.get_rect()[3] / 2 + (py - player.y)))
 
-        for pr in p[4]:
+        for pr in pp:
             px, py, pvx, pvy, pgx, pgy, pt = pr
             frame = pygame.transform.rotate(player.grenade[pt], (360 / (2 * math.pi)) * math.atan2(pvx, pvy) - 90)
             window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
