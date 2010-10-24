@@ -17,9 +17,15 @@ class Player:
     w, h = 32, 32
     landspeed = 2
     waterspeed = .1
+    projectiles = []
 
     def __init__(self, x, y):
         self.x, self.y = x, y
+
+    def shoot(self, vx, vy, gx, gy):
+        speed = 3
+        projectile = [player.x, player.y, speed * vx, speed * vy, gx, gy, 0]
+        self.projectiles.append(projectile)
 
 colorkey = (0, 0, 255)
 framerate = 60
@@ -76,6 +82,24 @@ def draw(event):
                 continue
 
             window.blit(tiles[tilemap[y][x]], (x * ts - px + ww / 2, y * ts - py + wh / 2))
+
+    remove = []
+    for i in range(len(player.projectiles)):
+        px, py, pvx, pvy, pgx, pgy, pt = player.projectiles[i]
+        if math.fabs(px - pgx) > 10 or math.fabs(py - pgy) > 10:
+            player.projectiles[i][0] += pvx
+            player.projectiles[i][1] += pvy
+        else:
+            player.projectiles[i][6] += 1
+            pt += 1
+            if player.projectiles[i][6] >= len(player.grenade) - 1:
+                remove.append(player.projectiles[i])
+
+        frame = pygame.transform.rotate(player.grenade[pt], (360 / (2 * math.pi)) * math.atan2(pvx, pvy) - 90)
+        window.blit(frame, (ww / 2 - frame.get_rect()[2] / 2 + (px - player.x), wh / 2 - frame.get_rect()[3] / 2 + (py - player.y)))
+
+    for r in remove:
+        player.projectiles.remove(r)
 
     sock.sendto(str([player.nick, player.x, player.y, player.angle]), addr)
     players = eval(sock.recv(1024))
@@ -146,6 +170,22 @@ def mousepress(event):
             editor.current_tile = (editor.current_tile - 1) % len(tiles)
         elif event.button == 5:
             editor.current_tile = (editor.current_tile + 1) % len(tiles)
+    else:
+        if event.button == 1:
+            mx, my = pygame.mouse.get_pos()
+
+            dx = mx - ww / 2
+            dy = my - wh / 2
+
+            l = math.sqrt(dx ** 2 + dy ** 2)
+
+            dx /= l
+            dy /= l
+
+            gx = mx + player.x - ww / 2
+            gy = my + player.y - wh / 2
+
+            player.shoot(dx, dy, gx, gy)
 
 def main():
     events = {str(pygame.VIDEOEXPOSE): draw,
@@ -155,7 +195,7 @@ def main():
     pygame.init()
     pygame.time.set_timer(pygame.VIDEOEXPOSE, 1000 / framerate)
 
-    global window, image, player, tiles, tilemap, editor, dialog_font, fog, addr, sock
+    global window, image, player, tiles, tilemap, editor, dialog_font, addr, sock
 
     window = pygame.display.set_mode((ww, wh))
 
@@ -176,7 +216,7 @@ def main():
 
     dialog_font = pygame.font.SysFont(dialog_fontname, dialog_fontsize)
 
-    fog = pygame.image.load("gfx/fog.png")
+    player.grenade = util.load_frames("gfx/grenade.png", 16, 16, colorkey)
 
     addr = sys.argv[1], int(sys.argv[2])
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
