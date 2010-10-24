@@ -16,7 +16,7 @@ class Player:
     vx, vy = 0, 0
     w, h = 32, 32
     landspeed = 2
-    waterspeed = .1
+    waterspeed = .5
     projectiles = []
 
     def __init__(self, x, y):
